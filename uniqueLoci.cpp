@@ -175,8 +175,8 @@ int main(int argc, char** argv) {
     std::cout<<"Begin CM Sketch build"<<std::endl;
     omp_set_num_threads (numThreads);
 
-    #pragma omp declare reduction(combineCM:CM: \
-    omp_out=combineCM(omp_out,omp_in))
+    /* #pragma omp declare reduction(combineCM:CM: \
+     omp_out=combineCM(omp_out,omp_in)) */
 
     #pragma omp parallel for shared(kmerLen,epsilon,delta,result) schedule(static,1)// reduction(combineCM:cm)
     for (unsigned int i=0;i<numThreads;i++) {
@@ -254,7 +254,7 @@ int main(int argc, char** argv) {
                             transform(c.begin(), c.end(), c.begin(), ::toupper);
                             curCount=result.estimate(c);
                             if (curCount<=max_count){
-                                fprintf(outLog, "%s,%s,%ld,%d\n",fp.second.c_str(),curChrom.c_str(),pos,curCount);
+                                fprintf(outLog, "%s,%s,%ld,%d,%s\n",fp.second.c_str(),curChrom.c_str(),pos,curCount,c.c_str());
                             }
                             pos++;
                         }
@@ -263,7 +263,7 @@ int main(int argc, char** argv) {
                             transform(c.begin(), c.end(), c.begin(), ::toupper);
                             curCount=result.estimate(c);
                             if (curCount<=max_count){
-                                fprintf(outLog, "%s,%s,%ld,%d\n",fp.second.c_str(),curChrom.c_str(),pos,curCount);
+                                fprintf(outLog, "%s,%s,%ld,%d,%s\n",fp.second.c_str(),curChrom.c_str(),pos,curCount,c.c_str());
                             }
                             pos++;
                         }
