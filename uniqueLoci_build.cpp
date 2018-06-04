@@ -1,0 +1,263 @@
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string.h>
+#include <algorithm>
+#include <dirent.h>
+#include <stdlib.h>
+#include <vector>
+#include <omp.h>
+
+#include "CM.h"
+#include "arg_parse.h"
+
+// ./uniqueLoci_build -i ./testData -o ./log31.csv -k 31 -e 0.00000001 -d 0.005 -t 2
+
+typedef std::vector< std::pair<long,std::string> > fsMap; //type of object that holds file paths and sizes
+typedef std::vector< fsMap > thread_fsMap; //type of object that holds file paths and sizes for each thread
+
+std::string reverse(std::string seq){ //https://stackoverflow.com/questions/33074574/creating-complement-of-dna-sequence-and-reversing-it-c
+    auto lambda = [](const char c) {
+        switch (c) {
+        case 'A':
+            return 'T';
+        case 'G':
+            return 'C';
+        case 'C':
+            return 'G';
+        case 'T':
+            return 'A';
+        case 'N':
+            return 'N';
+        default:
+            std::cout<<"ERROR: "<<c<<std::endl;
+            throw std::domain_error("Invalid nucleotide.");
+        }
+    };
+
+    std::transform(seq.cbegin(), seq.cend(), seq.begin(), lambda);
+    return seq;
+}
+
+// UNALIGN SAM'S code
+enum Opt {INPUT    = 'i',
+          OUTPUT       = 'o',
+          KMER_LEN     = 'k',
+          EPSILON      = 'e',
+          DELTA        = 'd',
+          THREADS      = 't',
+          STEP         = 's'};
+
+CM combineCM(CM r,CM n) {
+    // r is the already reduced CM
+    // n is the new CM
+    r.merge(&n);
+    return r;
+}
+
+int main(int argc, char** argv) {
+
+    ArgParse args("Find unique loci in a genome");
+
+    args.add_string(Opt::INPUT, "ref_fasta", "", "directory where reference sequence directories are stored.");
+    args.add_string(Opt::OUTPUT, "output", "", "directory where the database will be stored");
+    args.add_int(Opt::KMER_LEN, "kmer_length", 31, "kmer length to use");
+    args.add_double(Opt::EPSILON, "epsilon", 0.00000001, "epsilon parameter of the CM sketch");
+    args.add_double(Opt::DELTA, "delta", 0.001, "delta parameter of CM sketch");
+    args.add_int(Opt::THREADS, "threads",1,"number of threads to run concurrently");
+    args.add_int(Opt::STEP, "step",1,"how many positions to skip");
+    args.parse_args(argc, argv);
+
+    std::string inputDir=args.get_string(Opt::INPUT);
+
+    int kmerLen=args.get_int(Opt::KMER_LEN);
+    double epsilon=args.get_double(Opt::EPSILON);
+    double delta=args.get_double(Opt::DELTA);
+    unsigned int numThreads=args.get_int(Opt::THREADS);
+
+    /*================================================================================
+    =========================FIND FILES AND ASSIGN TO THREADS=========================
+    ================================================================================*/
+    DIR *parentDir=opendir(inputDir.c_str());
+    struct dirent *parentEnt;
+    std::string parentFP=inputDir;
+    std::string subFP=inputDir;
+    if (strcmp(parentFP.substr(parentFP.length()-1).c_str(),"/")==0){
+        parentFP=parentFP.substr(0,parentFP.length()-1);
+    }
+
+    std::string curFP;
+    fsMap fsm;
+
+    if (parentDir!=NULL){
+        while ((parentEnt = readdir (parentDir)) != NULL) {
+            if (strcmp(parentEnt->d_name,".")!=0 && strcmp(parentEnt->d_name,"..")!=0){
+                subFP=parentFP;
+                subFP+="/";
+                subFP+=parentEnt->d_name;
+                DIR *subDir=opendir(subFP.c_str());
+                struct dirent *subEnt;
+                if (subDir!=NULL){
+                    while ((subEnt = readdir (subDir)) != NULL) {
+                        if (strcmp(subEnt->d_name,".")!=0 && strcmp(subEnt->d_name,"..")!=0 && std::string(subEnt->d_name).length()>4){
+                            curFP=std::string(subEnt->d_name);
+                            if (strcmp(curFP.substr(curFP.length()-4).c_str(),".fna")==0 || strcmp(curFP.substr(curFP.length()-3).c_str(),".fa")==0){
+                                std::ifstream* in=new std::ifstream((subFP+"/"+curFP).c_str(), std::ifstream::ate | std::ifstream::binary);
+                                fsm.push_back(std::pair<long,std::string>(in->tellg(),subFP+"/"+curFP));
+                                delete in;
+                            }
+                        }
+                    }
+                }
+                closedir (subDir);
+            }
+        }
+    }
+    else{
+        std::cout<<"Error opening parent directory"<<std::endl;
+        exit (EXIT_FAILURE);
+    }
+
+    // if threads requested is greater than the number of files - reduce number of threads to the number of files
+    if (numThreads>fsm.size()){
+        numThreads=fsm.size();
+    }
+
+    // initialize thread assignments
+    thread_fsMap threadFPs;
+    std::sort(fsm.begin(), fsm.end());
+
+    // first distribute n largest objects into threads
+    for (unsigned int i=0;i<numThreads;i++){
+        threadFPs.push_back(fsMap());
+        threadFPs[i].push_back(fsm.back());
+        fsm.pop_back();
+    }
+
+    // next begin distributing smallest objects to the smallest bins
+    // starting at the smallest bin
+    if (fsm.size()>0){
+        while(true){
+            std::sort(threadFPs.begin(),threadFPs.end(),[](fsMap a, fsMap b){
+                long s1=0;
+                long s2=0;
+                for (std::pair<long,std::string> i : a)
+                    s1+=i.first;
+                for (std::pair<long,std::string> i : b)
+                    s2+=i.first;
+                return s1 < s2;
+            });
+            threadFPs[0].push_back(fsm.front());
+            fsm.erase(fsm.begin());
+            if (fsm.size()==0){
+                break;
+            }
+        }
+    }
+    closedir (parentDir);
+
+    // for (int i=0;i<threadFPs.size();i++){
+    //     std::cout<<"\nTHREAD #"<<i<<std::endl;
+    //     for (auto j : threadFPs[i])
+    //         std::cout<<"File: "<<j.second<<" of size: "<<j.first<<std::endl;
+    // }
+
+    /*=================================================================================
+    ============================BEGIN CONSTRUCTING A SKETCH============================
+    =================================================================================*/
+
+    // initialize CM-sketch
+    CM cm;
+    CM result(epsilon,delta);
+
+    std::cout<<"Begin CM Sketch build"<<std::endl;
+    omp_set_num_threads (numThreads);
+
+    #pragma omp declare reduction(combineCM:CM: \
+    omp_out=combineCM(omp_out,omp_in))
+
+    #pragma omp parallel for private (cm) shared(kmerLen,epsilon,delta,result) schedule(static,1)// reduction(combineCM:cm)
+    for (unsigned int i=0;i<numThreads;i++) {
+        cm.set_params(epsilon,delta);
+        int curThread=omp_get_thread_num();
+        // std::cout<<"THREAD #"<<curThread<<std::endl;
+        for (auto fp : threadFPs[curThread]){
+            // std::cout<<fp.second<<std::endl;
+            std::string line, seq, c;
+            std::string curChrom="";
+            std::ifstream genome(fp.second);
+            if (genome.is_open()){
+                while (std::getline(genome, line))
+                {
+                    if (line[0]=='>'){
+                        curChrom=line.substr(1);
+                    }
+                    else{
+                        // now process kmers for each line and add to cmsketch
+                        seq+=line.substr(0,kmerLen-1);
+                        for (size_t k=0;k<seq.length()-kmerLen+1;k++){
+                            // std::cout<<"forward: "<<seq.substr(k,kmerLen).c_str()<<std::endl;
+                            c=seq.substr(k,kmerLen);
+                            transform(c.begin(), c.end(), c.begin(), ::toupper);
+                            cm.update(c);
+                            c=reverse(c);
+                            cm.update(c);
+                            // std::cout<<cm.estimate(seq.substr(k,kmerLen).c_str())<<std::endl;
+                        }
+                        for (size_t k=0;k<line.length()-kmerLen+1;k++){
+                            // std::cout<<line.substr(k,kmerLen).c_str()<<std::endl;
+                            c=line.substr(k,kmerLen);
+                            transform(c.begin(), c.end(), c.begin(), ::toupper);
+                            cm.update(c);
+                            c=reverse(c);
+                            cm.update(c);
+                        }
+                        seq=line.substr(line.length()-kmerLen+1,kmerLen);
+                    }
+                }
+            }
+            else{
+                std::cout<<"file can not be opened"<<std::endl;
+            }
+            genome.close();
+        }
+        #pragma omp critical
+        result.merge(&cm);
+    }
+    // SINGLE THREADED EVALUATION
+    for (unsigned int i=0;i<numThreads;i++) {
+        for (auto fp : threadFPs[i]){
+            std::string line, seq, c;
+            std::string curChrom="";
+            std::ifstream genome(fp.second);
+            if (genome.is_open()){
+                long pos=0; // start of the current kmer
+                while (std::getline(genome,line)){
+                    if (line[0]=='>'){
+                        curChrom=line.substr(1);
+                    }
+                    else{
+                        seq+=line.substr(0,kmerLen-1);
+                        for (size_t k=0;k<seq.length()-kmerLen+1;k++){
+                            c=seq.substr(k,kmerLen);
+                            transform(c.begin(), c.end(), c.begin(), ::toupper);
+                            std::cout<<"kmer: "<<c<<"\tcount: "<<result.estimate(c)<<std::endl;
+                            // fprintf(outLog, "%s,%ld,%d\n",curChrom.c_str(),pos,cm.estimate(c));
+                            pos++;
+                        }
+                        for (size_t k=0;k<line.length()-kmerLen+1;k++){
+                            c=line.substr(k,kmerLen);
+                            transform(c.begin(), c.end(), c.begin(), ::toupper);
+                            std::cout<<"kmer: "<<c<<"\tcount: "<<result.estimate(c)<<std::endl;
+                            // fprintf(outLog, "%s,%ld,%d\n",curChrom.c_str(),pos,cm.estimate(c));
+                            pos++;
+                        }
+                        seq=line.substr(line.length()-kmerLen+1,kmerLen);
+                    }
+                }
+            }
+        }
+    }
+
+    return 0;
+}
