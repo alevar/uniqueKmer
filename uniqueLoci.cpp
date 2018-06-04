@@ -178,7 +178,7 @@ int main(int argc, char** argv) {
     // initialize CM-sketch
     CM result(epsilon,delta);
 
-    std::cout<<"Begin CM Sketch build"<<std::endl;
+    std::cout<<"\n=================Begin CM Sketch build\n================="<<std::endl;
     omp_set_num_threads (numThreads);
 
     /* #pragma omp declare reduction(combineCM:CM: \
@@ -191,7 +191,7 @@ int main(int argc, char** argv) {
         int curThread=omp_get_thread_num();
         // std::cout<<"THREAD #"<<curThread<<std::endl;
         for (auto fp : threadFPs[curThread]){
-            // std::cout<<fp.second<<std::endl;
+            std::cout<<fp.second<<std::endl;
             std::string line, seq, c, cr;
             std::string curChrom="";
             std::ifstream genome(fp.second);
@@ -251,12 +251,13 @@ int main(int argc, char** argv) {
         result.merge(&cm);
     }
     // SINGLE THREADED EVALUATION
-    std::cout<<"Begin writing out results"<<std::endl;
+    std::cout<<"\n=================Begin writing out results\n================="<<std::endl;
     #pragma omp parallel for shared(kmerLen,result,args,max_count) schedule(static,1)// reduction(combineCM:cm)
     for (unsigned int i=0;i<numThreads;i++) {
         int curThread=omp_get_thread_num();
-        int curCount=0;
+        uint8_t curCount=0;
         for (auto fp : threadFPs[curThread]){
+            std::cout<<fp.second<<std::endl;
             std::string line, seq, c;
             std::string curChrom="";
             std::ifstream genome(fp.second);

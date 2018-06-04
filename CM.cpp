@@ -12,9 +12,9 @@ CM::CM(float epsilon,float delta){
 	this->width=ceil(exp(1)/epsilon);
 	this->depth=ceil(log(1/delta));
 
-	sketch = new unsigned short int * [depth];
+	sketch = new uint8_t * [depth];
     for (size_t i = 0; i < this->depth; i++) {
-        sketch[i] = new unsigned short int [width];
+        sketch[i] = new uint8_t [width];
         for (size_t j=0;j<this->width;j++){
         	sketch[i][j]=0;
         }
@@ -34,9 +34,9 @@ void CM::set_params(float epsilon,float delta){
 	this->width=ceil(exp(1)/epsilon);
 	this->depth=ceil(log(1/delta));
 
-	sketch = new unsigned short int * [depth];
+	sketch = new uint8_t * [depth];
     for (size_t i = 0; i < this->depth; i++) {
-        sketch[i] = new unsigned short int [width];
+        sketch[i] = new uint8_t [width];
         for (size_t j=0;j<this->width;j++){
         	sketch[i][j]=0;
         }
@@ -55,8 +55,8 @@ void CM::update(std::string& item){
 	}
 }
 
-unsigned short int CM::estimate(std::string& item){
-	unsigned short int minCount=MAX_PERMITTED_COUNT;
+uint8_t CM::estimate(std::string& item){
+	uint8_t minCount=MAX_PERMITTED_COUNT;
 
 	for (size_t i=0;i<this->depth;i++){
 		this->hash=this->hasher(item+std::to_string(i))%this->width;

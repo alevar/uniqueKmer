@@ -3,12 +3,12 @@
 
 #include <string>
 
-#define MAX_PERMITTED_COUNT 65535
+#define MAX_PERMITTED_COUNT 255
 
 class CM {
 
 	private:
-		unsigned short int** sketch,curVal;
+		uint8_t** sketch,curVal;
 		unsigned int width,depth;
 		std::hash<std::string> hasher;
 		size_t hash;
@@ -23,7 +23,7 @@ class CM {
   		void merge(CM * cm);
   		void save(FILE * fp);
   		void load(FILE * fp);
-  		unsigned short int estimate(std::string& item);
+  		uint8_t estimate(std::string& item);
 };
 
 #endif
