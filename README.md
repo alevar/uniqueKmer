@@ -5,7 +5,7 @@ identification of kmers with n occurrences from metagenomic databases
 make
 
 ## Sample command to run
-./uniqueLoci -i \<directory containing metagenomic samples\> -o <output file name \> -k <kmer size> -e 0.00000001 -d 0.0005 -t <number of threads> -c <maximum kmer count to report in the output>
+`./uniqueLoci -i <directory containing metagenomic samples> -o <output file name > -k <kmer size> -e 0.00000001 -d 0.0005 -t <number of threads> -c <maximum kmer count to report in the output>`
 
 ## Warnings
 
