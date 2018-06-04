@@ -27,7 +27,7 @@ make
 ### Lower values of epsilon and delta will result in higher sensitivity at higher memory (epsilon) or compute time (delta)
 | Epsilon   | Delta | Total Sketch Size (MB) |
 | --------- |:-----:|:----------------------:|
-| 0.0001 (27183 elements)   | 0.005(6 hashes) | 0.3 |
-| 0.00001 (271829 elements)  | 0.005(6 hashes) | 3 |
-| 0.000001 (2718282 elements) | 0.005(6 hashes) | 31 |
-| 0.0000001 (27182818 elements)| 0.005(6 hashes) | 311 |
+| 0.0001 (27183 elements)   | 0.005(6 hashes) | 0.2 |
+| 0.00001 (271829 elements)  | 0.005(6 hashes) | 1.5 |
+| 0.000001 (2718282 elements) | 0.005(6 hashes) | 16 |
+| 0.0000001 (27182818 elements)| 0.005(6 hashes) | 155 |
