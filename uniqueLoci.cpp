@@ -194,10 +194,17 @@ int main(int argc, char** argv) {
                 {
                     if (line[0]=='>'){
                         curChrom=line.substr(1);
+                        seq="";
                     }
                     else{
                         // now process kmers for each line and add to cmsketch
-                        seq+=line.substr(0,kmerLen-1);
+                        if (line.length()>=(unsigned int)kmerLen){ // shorter than kmerlength - typically last line of the fasta file
+                            seq+=line.substr(0,kmerLen-1);
+                        }
+                        else{
+                            seq+=line;
+                        }
+                        // std::cout<<line<<"\t"<<seq<<std::endl;
                         for (size_t k=0;k<seq.length()-kmerLen+1;k++){
                             // std::cout<<"forward: "<<seq.substr(k,kmerLen).c_str()<<std::endl;
                             c=seq.substr(k,kmerLen);
@@ -207,15 +214,20 @@ int main(int argc, char** argv) {
                             cm.update(c);
                             // std::cout<<cm.estimate(seq.substr(k,kmerLen).c_str())<<std::endl;
                         }
-                        for (size_t k=0;k<line.length()-kmerLen+1;k++){
-                            // std::cout<<line.substr(k,kmerLen).c_str()<<std::endl;
-                            c=line.substr(k,kmerLen);
-                            transform(c.begin(), c.end(), c.begin(), ::toupper);
-                            cm.update(c);
-                            c=reverse(c);
-                            cm.update(c);
+                        if (line.length()>=(unsigned int)kmerLen){ // shorter than kmerlength - typically last line of the fasta file
+                            for (size_t k=0;k<line.length()-kmerLen+1;k++){
+                                // std::cout<<line.substr(k,kmerLen).c_str()<<std::endl;
+                                c=line.substr(k,kmerLen);
+                                transform(c.begin(), c.end(), c.begin(), ::toupper);
+                                cm.update(c);
+                                c=reverse(c);
+                                cm.update(c);
+                            }
+                            seq=line.substr(line.length()-kmerLen+1,kmerLen);
                         }
-                        seq=line.substr(line.length()-kmerLen+1,kmerLen);
+                        else{
+                            seq=line;
+                        }
                     }
                 }
             }
@@ -246,9 +258,15 @@ int main(int argc, char** argv) {
                 while (std::getline(genome,line)){
                     if (line[0]=='>'){
                         curChrom=line.substr(1);
+                        seq="";
                     }
                     else{
-                        seq+=line.substr(0,kmerLen-1);
+                        if (line.length()>=(unsigned int)kmerLen){ // shorter than kmerlength - typically last line of the fasta file
+                            seq+=line.substr(0,kmerLen-1);
+                        }
+                        else{
+                            seq+=line;
+                        }
                         for (size_t k=0;k<seq.length()-kmerLen+1;k++){
                             c=seq.substr(k,kmerLen);
                             transform(c.begin(), c.end(), c.begin(), ::toupper);
@@ -258,16 +276,21 @@ int main(int argc, char** argv) {
                             }
                             pos++;
                         }
-                        for (size_t k=0;k<line.length()-kmerLen+1;k++){
-                            c=line.substr(k,kmerLen);
-                            transform(c.begin(), c.end(), c.begin(), ::toupper);
-                            curCount=result.estimate(c);
-                            if (curCount<=max_count){
-                                fprintf(outLog, "%s,%s,%ld,%d,%s\n",fp.second.c_str(),curChrom.c_str(),pos,curCount,c.c_str());
+                        if (line.length()>=(unsigned int)kmerLen){ // shorter than kmerlength - typically last line of the fasta file
+                            for (size_t k=0;k<line.length()-kmerLen+1;k++){
+                                c=line.substr(k,kmerLen);
+                                transform(c.begin(), c.end(), c.begin(), ::toupper);
+                                curCount=result.estimate(c);
+                                if (curCount<=max_count){
+                                    fprintf(outLog, "%s,%s,%ld,%d,%s\n",fp.second.c_str(),curChrom.c_str(),pos,curCount,c.c_str());
+                                }
+                                pos++;
                             }
-                            pos++;
+                            seq=line.substr(line.length()-kmerLen+1,kmerLen);
                         }
-                        seq=line.substr(line.length()-kmerLen+1,kmerLen);
+                        else{
+                            seq=line;
+                        }
                     }
                 }
             }
