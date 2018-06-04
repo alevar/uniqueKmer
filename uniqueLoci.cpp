@@ -17,7 +17,8 @@ typedef std::vector< std::pair<long,std::string> > fsMap; //type of object that 
 typedef std::vector< fsMap > thread_fsMap; //type of object that holds file paths and sizes for each thread
 
 std::string reverse(std::string seq){ //https://stackoverflow.com/questions/33074574/creating-complement-of-dna-sequence-and-reversing-it-c
-    auto lambda = [](const char c) {
+    bool ambiguous=false;
+    auto lambda = [&ambiguous](const char c) {
         switch (c) {
         case 'A':
             return 'T';
@@ -30,13 +31,18 @@ std::string reverse(std::string seq){ //https://stackoverflow.com/questions/3307
         case 'N':
             return 'N';
         default:
-            std::cout<<"ERROR: "<<c<<std::endl;
-            throw std::domain_error("Invalid nucleotide.");
+            // std::cout<<"ERROR: "<<c<<std::endl;
+            // throw std::domain_error("Invalid nucleotide.");
+            ambiguous=true;
+            return 'N';
         }
     };
 
     std::transform(seq.cbegin(), seq.cend(), seq.begin(), lambda);
-    return seq;
+    if (ambiguous==false){
+        return seq;
+    }
+    return {};
 }
 
 // UNALIGN SAM'S code
@@ -186,7 +192,7 @@ int main(int argc, char** argv) {
         // std::cout<<"THREAD #"<<curThread<<std::endl;
         for (auto fp : threadFPs[curThread]){
             // std::cout<<fp.second<<std::endl;
-            std::string line, seq, c;
+            std::string line, seq, c, cr;
             std::string curChrom="";
             std::ifstream genome(fp.second);
             if (genome.is_open()){
@@ -209,9 +215,11 @@ int main(int argc, char** argv) {
                             // std::cout<<"forward: "<<seq.substr(k,kmerLen).c_str()<<std::endl;
                             c=seq.substr(k,kmerLen);
                             transform(c.begin(), c.end(), c.begin(), ::toupper);
-                            cm.update(c);
-                            c=reverse(c);
-                            cm.update(c);
+                            cr=reverse(c);
+                            if (cr.length()!=0){ //ambiguous code not detected
+                                cm.update(c);
+                                cm.update(cr);
+                            }
                             // std::cout<<cm.estimate(seq.substr(k,kmerLen).c_str())<<std::endl;
                         }
                         if (line.length()>=(unsigned int)kmerLen){ // shorter than kmerlength - typically last line of the fasta file
@@ -219,9 +227,12 @@ int main(int argc, char** argv) {
                                 // std::cout<<line.substr(k,kmerLen).c_str()<<std::endl;
                                 c=line.substr(k,kmerLen);
                                 transform(c.begin(), c.end(), c.begin(), ::toupper);
-                                cm.update(c);
-                                c=reverse(c);
-                                cm.update(c);
+                                cr=reverse(c);
+                                // std::cout<<c<<"\t"<<cr<<std::endl;
+                                if (cr.length()!=0){ //ambiguous code not detected
+                                    cm.update(c);
+                                    cm.update(cr);
+                                }
                             }
                             seq=line.substr(line.length()-kmerLen+1,kmerLen);
                         }
@@ -271,7 +282,7 @@ int main(int argc, char** argv) {
                             c=seq.substr(k,kmerLen);
                             transform(c.begin(), c.end(), c.begin(), ::toupper);
                             curCount=result.estimate(c);
-                            if (curCount<=max_count){
+                            if (curCount<=max_count && curCount>0){
                                 fprintf(outLog, "%s,%s,%ld,%d,%s\n",fp.second.c_str(),curChrom.c_str(),pos,curCount,c.c_str());
                             }
                             pos++;
@@ -281,7 +292,7 @@ int main(int argc, char** argv) {
                                 c=line.substr(k,kmerLen);
                                 transform(c.begin(), c.end(), c.begin(), ::toupper);
                                 curCount=result.estimate(c);
-                                if (curCount<=max_count){
+                                if (curCount<=max_count && curCount>0){
                                     fprintf(outLog, "%s,%s,%ld,%d,%s\n",fp.second.c_str(),curChrom.c_str(),pos,curCount,c.c_str());
                                 }
                                 pos++;
