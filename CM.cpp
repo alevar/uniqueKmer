@@ -20,14 +20,14 @@ CM::CM(float epsilon,float delta){
         }
     }
 
-    std::cout<<"width: "<<width<<" depth: "<<depth<<std::endl;
+    // std::cout<<"width: "<<width<<" depth: "<<depth<<std::endl;
 }
 
 CM::~CM(){
 	for (size_t i=0;i<this->depth;i++) {
-        delete[] sketch[i];
+        delete[] this->sketch[i];
     }
-    delete[] sketch;
+    delete[] this->sketch;
 }
 
 void CM::set_params(float epsilon,float delta){
@@ -42,7 +42,7 @@ void CM::set_params(float epsilon,float delta){
         }
     }
 
-    std::cout<<"width: "<<width<<" depth: "<<depth<<std::endl;
+    // std::cout<<"width: "<<width<<" depth: "<<depth<<std::endl;
 }
 
 void CM::update(std::string& item){
@@ -74,8 +74,8 @@ void CM::merge(CM* cm){
 		for (size_t j=0;j<this->width;j++){
 			// std::cout<<"val at: ["<<j<<","<<i<<"]"<<std::endl;
 			this->curVal=this->sketch[i][j]+cm->sketch[i][j];
-			if (this->curVal<MAX_PERMITTED_COUNT){
-				this->sketch[i][j]+=cm->sketch[i][j];
+			if (this->sketch[i][j]<MAX_PERMITTED_COUNT-cm->sketch[i][j]){
+				this->sketch[i][j]+=((cm->sketch)[i][j]);
 			}	
 		}
 	}

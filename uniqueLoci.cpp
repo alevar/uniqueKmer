@@ -46,7 +46,8 @@ enum Opt {INPUT    = 'i',
           EPSILON      = 'e',
           DELTA        = 'd',
           THREADS      = 't',
-          STEP         = 's'};
+          STEP         = 's',
+          MAX_COUNT    = 'c'};
 
 CM combineCM(CM r,CM n) {
     // r is the already reduced CM
@@ -66,6 +67,7 @@ int main(int argc, char** argv) {
     args.add_double(Opt::DELTA, "delta", 0.001, "delta parameter of CM sketch");
     args.add_int(Opt::THREADS, "threads",1,"number of threads to run concurrently");
     args.add_int(Opt::STEP, "step",1,"how many positions to skip");
+    args.add_int(Opt::MAX_COUNT, "max_count",1,"Only kmers with a count <= to max_ount will be reported in the log");
     args.parse_args(argc, argv);
 
     std::string inputDir=args.get_string(Opt::INPUT);
@@ -74,6 +76,7 @@ int main(int argc, char** argv) {
     double epsilon=args.get_double(Opt::EPSILON);
     double delta=args.get_double(Opt::DELTA);
     unsigned int numThreads=args.get_int(Opt::THREADS);
+    int max_count=args.get_int(Opt::MAX_COUNT);
 
     /*================================================================================
     =========================FIND FILES AND ASSIGN TO THREADS=========================
@@ -167,7 +170,6 @@ int main(int argc, char** argv) {
     =================================================================================*/
 
     // initialize CM-sketch
-    CM cm;
     CM result(epsilon,delta);
 
     std::cout<<"Begin CM Sketch build"<<std::endl;
@@ -176,9 +178,10 @@ int main(int argc, char** argv) {
     #pragma omp declare reduction(combineCM:CM: \
     omp_out=combineCM(omp_out,omp_in))
 
-    #pragma omp parallel for private (cm) shared(kmerLen,epsilon,delta,result) schedule(static,1)// reduction(combineCM:cm)
+    #pragma omp parallel for shared(kmerLen,epsilon,delta,result) schedule(static,1)// reduction(combineCM:cm)
     for (unsigned int i=0;i<numThreads;i++) {
-        cm.set_params(epsilon,delta);
+        CM cm(epsilon,delta);
+        // cm.set_params(epsilon,delta);
         int curThread=omp_get_thread_num();
         // std::cout<<"THREAD #"<<curThread<<std::endl;
         for (auto fp : threadFPs[curThread]){
@@ -225,11 +228,19 @@ int main(int argc, char** argv) {
         result.merge(&cm);
     }
     // SINGLE THREADED EVALUATION
+    std::cout<<"Begin writing out results"<<std::endl;
+    #pragma omp parallel for shared(kmerLen,result,args,max_count) schedule(static,1)// reduction(combineCM:cm)
     for (unsigned int i=0;i<numThreads;i++) {
-        for (auto fp : threadFPs[i]){
+        int curThread=omp_get_thread_num();
+        int curCount=0;
+        for (auto fp : threadFPs[curThread]){
             std::string line, seq, c;
             std::string curChrom="";
             std::ifstream genome(fp.second);
+            FILE *outLog;
+            std::string outFP=args.get_string(Opt::OUTPUT)+std::to_string(curThread);
+            outLog = fopen(outFP.c_str(),"w+");
+
             if (genome.is_open()){
                 long pos=0; // start of the current kmer
                 while (std::getline(genome,line)){
@@ -241,23 +252,31 @@ int main(int argc, char** argv) {
                         for (size_t k=0;k<seq.length()-kmerLen+1;k++){
                             c=seq.substr(k,kmerLen);
                             transform(c.begin(), c.end(), c.begin(), ::toupper);
-                            std::cout<<"kmer: "<<c<<"\tcount: "<<result.estimate(c)<<std::endl;
-                            // fprintf(outLog, "%s,%ld,%d\n",curChrom.c_str(),pos,cm.estimate(c));
+                            curCount=result.estimate(c);
+                            if (curCount<=max_count){
+                                fprintf(outLog, "%s,%s,%ld,%d\n",fp.second.c_str(),curChrom.c_str(),pos,curCount);
+                            }
                             pos++;
                         }
                         for (size_t k=0;k<line.length()-kmerLen+1;k++){
                             c=line.substr(k,kmerLen);
                             transform(c.begin(), c.end(), c.begin(), ::toupper);
-                            std::cout<<"kmer: "<<c<<"\tcount: "<<result.estimate(c)<<std::endl;
-                            // fprintf(outLog, "%s,%ld,%d\n",curChrom.c_str(),pos,cm.estimate(c));
+                            curCount=result.estimate(c);
+                            if (curCount<=max_count){
+                                fprintf(outLog, "%s,%s,%ld,%d\n",fp.second.c_str(),curChrom.c_str(),pos,curCount);
+                            }
                             pos++;
                         }
                         seq=line.substr(line.length()-kmerLen+1,kmerLen);
                     }
                 }
             }
+            fclose(outLog);
+            genome.close();
         }
     }
+
+    // now just merge all temporary files together
 
     return 0;
 }

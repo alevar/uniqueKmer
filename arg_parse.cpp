@@ -9,7 +9,10 @@ ArgParse::ArgParse(std::string desc) {
 }
 
 ArgParse::~ArgParse() {
-
+    // delete val_int;
+    // delete val_bool;
+    // delete val_double;
+    // delete val_string;
 }
 
 std::string ArgParse::get_param_str() {
@@ -104,10 +107,10 @@ bool ArgParse::add_flag(char c, std::string name, std::string desc="") {
         return false;
     }
 
-    bool *val = new bool;
-    *val = false;
+    bool *val_bool = new bool;
+    *val_bool = false;
 
-    Arg a = {Type::FLAG, name, desc, (void *) val};
+    Arg a = {Type::FLAG, name, desc, (void *) val_bool};
     args_[c] = a;
 
     return true;
@@ -120,10 +123,10 @@ bool ArgParse::add_int(char c, std::string name,
         return false;
     }
 
-    int *val = new int;
-    *val = def;
+    int *val_int = new int;
+    *val_int = def;
 
-    Arg a = {Type::INT, name, desc, (void *) val};
+    Arg a = {Type::INT, name, desc, (void *) val_int};
     args_[c] = a;
 
     return true;
@@ -136,10 +139,10 @@ bool ArgParse::add_double(char c, std::string name,
         return false;
     }
 
-    double *val = new double;
-    *val = def;
+    double *val_double = new double;
+    *val_double = def;
 
-    Arg a = {Type::DOUBLE, name, desc, (void *) val};
+    Arg a = {Type::DOUBLE, name, desc, (void *) val_double};
     args_[c] = a;
 
     return true;
@@ -153,10 +156,10 @@ bool ArgParse::add_string(char c, std::string name,
         return false;
     }
 
-    std::string *val = new std::string;
-    *val = def;
+    std::string *val_string = new std::string;
+    *val_string = def;
 
-    Arg a = {Type::STRING, name, desc, (void *) val};
+    Arg a = {Type::STRING, name, desc, (void *) val_string};
     args_[c] = a;
 
     return true;
